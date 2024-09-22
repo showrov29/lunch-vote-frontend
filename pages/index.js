@@ -13,21 +13,40 @@ import {
 	SkeletonCircle,
 	SkeletonText,
 	useToast,
+	Modal,
+	Spinner,
+	ModalOverlay,
+	ModalContent,
+	ModalBody,
 } from "@chakra-ui/react";
 export default function Index({ Component, initialRestaurants }) {
 	const [voteStatus, setVoteStatus] = useState(null);
 	const [openRestaurant, setOpenRestaurant] = useState(null); // Tracks which dropdown is open
 	const [animation, setAnimation] = useState({}); // For dropdown animation
 	const [restaurants, setRestaurants] = useState(initialRestaurants);
+	console.log("🚀 ~ Index ~ initialRestaurants:", initialRestaurants);
+	const [voting, setVoting] = useState(false);
 	const toast = useToast();
 	const handleVote = async (foodPackId) => {
+		setVoting(true);
 		const employeeName = "Employee Name"; // Replace with actual employee info
 
 		try {
-			await axios.post("http://localhost:3000/restaurants/vote", {
-				foodPackId,
-				employee: employeeName,
-			});
+			await axios.post(
+				"https://lunch-vote-backend.onrender.com/restaurants/vote",
+				{
+					foodPackId,
+					employee: employeeName,
+				}
+			);
+
+			// setVoteStatus("Vote successful!");
+
+			// Fetch updated restaurants
+			const res = await axios.get(
+				"https://lunch-vote-backend.onrender.com/restaurants"
+			);
+			setRestaurants(res.data); // Update the state with the new data
 			toast({
 				title: "Vote successful!",
 				status: "success",
@@ -35,12 +54,7 @@ export default function Index({ Component, initialRestaurants }) {
 				position: "top",
 				isClosable: true,
 			});
-
-			// setVoteStatus("Vote successful!");
-
-			// Fetch updated restaurants
-			const res = await axios.get("http://localhost:3000/restaurants");
-			setRestaurants(res.data); // Update the state with the new data
+			setVoting(false);
 		} catch (error) {
 			console.error(error);
 			toast({
@@ -50,6 +64,7 @@ export default function Index({ Component, initialRestaurants }) {
 				position: "top",
 				isClosable: true,
 			});
+			setVoting(false);
 			// setVoteStatus("Vote failed.");
 		}
 	};
@@ -67,9 +82,9 @@ export default function Index({ Component, initialRestaurants }) {
 	// Determine the current winner (you might need to adjust this logic based on your requirements)
 	const getCurrentWinner = () => {
 		let winner = { restaurant: "", foodPack: "", votes: 0 };
-		restaurants?.forEach((restaurant) => {
+		restaurants.forEach((restaurant) => {
 			restaurant.packs.forEach((pack) => {
-				const packVotes = pack.votes.length;
+				const packVotes = pack?.votes.length;
 				if (packVotes > winner.votes) {
 					winner = {
 						restaurant: restaurant.name,
@@ -91,6 +106,20 @@ export default function Index({ Component, initialRestaurants }) {
 		</Box>
 	) : (
 		<ChakraProvider>
+			{voting && (
+				<Modal isOpen={voting} onClose={() => {}} isCentered>
+					<ModalOverlay />
+					<ModalContent background="transparent" boxShadow="none">
+						<ModalBody
+							display="flex"
+							justifyContent="center"
+							alignItems="center">
+							<Spinner size="xl" thickness="8px" color="blue.500" />
+						</ModalBody>
+					</ModalContent>
+				</Modal>
+			)}
+
 			<div className="flex">
 				<div className="w-2/3 p-4">
 					<h1 className="text-2xl font-bold mb-4">Today's Lunch Vote</h1>
@@ -99,7 +128,11 @@ export default function Index({ Component, initialRestaurants }) {
 					)}
 					<Accordion allowToggle transitionDuration={3100}>
 						{restaurants?.map((restaurant) => (
-							<AccordionItem alignItems={"center"} mt={3} pb={2}>
+							<AccordionItem
+								key={restaurant.id}
+								alignItems={"center"}
+								mt={3}
+								pb={2}>
 								<AccordionButton _expanded={{ bg: "tomato", color: "white" }}>
 									<Box as="span" flex={1} textAlign={"left"}>
 										<h2 className="text-xl font-semibold">{restaurant.name}</h2>
@@ -119,7 +152,7 @@ export default function Index({ Component, initialRestaurants }) {
 											{restaurant.packs.map((pack) => (
 												<tr key={pack.id}>
 													<td className="border">{pack.name}</td>
-													<td className="border">{pack.votes.length}</td>
+													<td className="border">{pack.votes?.length}</td>
 													<td className="border">
 														<button
 															onClick={() => handleVote(pack.id)}
@@ -157,7 +190,9 @@ export default function Index({ Component, initialRestaurants }) {
 
 export async function getServerSideProps() {
 	try {
-		const res = await fetch("http://localhost:3000/restaurants");
+		const res = await fetch(
+			"https://lunch-vote-backend.onrender.com/restaurants"
+		);
 		const data = await res.json();
 
 		return {
